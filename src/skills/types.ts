@@ -14,4 +14,10 @@ export interface Skill {
   // appended to the system prompt for that turn. Skills that don't need
   // the local HTTP server don't get these fields, keeping the prompt lean.
   injectCallbackContext?: boolean;
+  // Categorizes the skill in the + menu. "core" ships with the plugin,
+  // "custom" was authored by the user via /manage-skills. Undefined is
+  // treated as "core" for backwards compatibility. The distinction is
+  // intentionally hidden from the inline slash-autocomplete popover —
+  // it's only surfaced when the user opens the + menu.
+  kind?: "core" | "custom";
 }

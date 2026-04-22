@@ -1,6 +1,69 @@
-import { MarkdownRenderer, Component } from "obsidian";
+import { MarkdownRenderer, Component, Notice, setIcon } from "obsidian";
 import { LayoutBlock, LayoutPosition } from "../../types";
 import { parseRichLayouts, mountRichLayout, activateTermLinks } from "./rich-layouts";
+
+/**
+ * Wrap every rendered <table> in a scroll container with a hover-revealed
+ * "Copy" button. Converts the table to TSV on click (columns separated by
+ * tabs, rows by newlines) — paste-friendly in Sheets, Excel, Notion, etc.
+ */
+function enhanceTables(root: HTMLElement): void {
+  const tables = root.querySelectorAll("table");
+  tables.forEach((table) => {
+    const t = table as HTMLTableElement;
+    // Guard against double-wrapping on re-renders.
+    if (t.parentElement?.classList.contains("obsidian-agents-table-scroll")) return;
+
+    const wrap = document.createElement("div");
+    wrap.className = "obsidian-agents-table-wrap";
+    const scroll = document.createElement("div");
+    scroll.className = "obsidian-agents-table-scroll";
+    const btn = document.createElement("button");
+    btn.className = "obsidian-agents-table-copy";
+    btn.type = "button";
+    btn.setAttribute("aria-label", "Copy table");
+    btn.title = "Copy table";
+    setIcon(btn, "copy");
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(tableToTsv(t));
+        // Swap to a checkmark, then fade the button out. Matches ChatGPT's
+        // confirm-then-disappear pattern so the user gets feedback without
+        // a persistent button sitting in the corner.
+        setIcon(btn, "check");
+        btn.classList.add("obsidian-agents-table-copy-done");
+        // Reset after the fade completes so a second copy works normally.
+        window.setTimeout(() => {
+          btn.classList.remove("obsidian-agents-table-copy-done");
+          setIcon(btn, "copy");
+        }, 1400);
+      } catch {
+        new Notice("Copy failed");
+      }
+    });
+
+    t.replaceWith(wrap);
+    scroll.appendChild(t);
+    wrap.appendChild(btn);
+    wrap.appendChild(scroll);
+  });
+}
+
+function tableToTsv(table: HTMLTableElement): string {
+  const rows: string[] = [];
+  table.querySelectorAll("tr").forEach((tr) => {
+    const cells: string[] = [];
+    tr.querySelectorAll("th, td").forEach((cell) => {
+      // Collapse internal whitespace + strip tabs/newlines so one row = one line.
+      const txt = (cell.textContent || "").replace(/\s+/g, " ").trim();
+      cells.push(txt);
+    });
+    rows.push(cells.join("\t"));
+  });
+  return rows.join("\n");
+}
 
 function positionToClass(pos: LayoutPosition): string {
   switch (pos) {
@@ -345,6 +408,7 @@ export class LayoutEngine {
       // Turn [[Label]]{#slug} inline markers into clickable pills. Safe to
       // run even when the message has no terms block — it's a no-op.
       activateTermLinks(textEl);
+      enhanceTables(textEl);
     };
     doRender();
 
@@ -365,9 +429,11 @@ export class LayoutEngine {
       } else {
         const blockText = blockEl.createDiv({ cls: "markdown-rendered" });
         if (app && component) {
-          MarkdownRenderer.render(app, block.content, blockText, sourcePath, component).catch(() => {
-            blockText.setText(block.content);
-          });
+          MarkdownRenderer.render(app, block.content, blockText, sourcePath, component)
+            .then(() => enhanceTables(blockText))
+            .catch(() => {
+              blockText.setText(block.content);
+            });
         } else {
           blockText.setText(block.content);
         }

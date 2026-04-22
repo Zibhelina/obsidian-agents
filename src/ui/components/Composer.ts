@@ -601,6 +601,34 @@ export class Composer extends Component {
     }
     this.renderAddMenu();
     this.addMenuEl.style.display = "block";
+    this.positionAddMenu();
+  }
+
+  /**
+   * Open whichever direction has more viewport room. In an active chat the
+   * composer is pinned to the bottom so "above" wins; in the empty state
+   * it's centered and "below" usually wins. Either way, cap max-height to
+   * the available space minus a margin so the popover never clips
+   * off-screen and the user scrolls inside it for overflow.
+   */
+  private positionAddMenu(): void {
+    if (!this.addMenuEl) return;
+    const menu = this.addMenuEl;
+    menu.style.maxHeight = "";
+    menu.style.bottom = "";
+    menu.style.top = "";
+    const anchor = this.addBtn.getBoundingClientRect();
+    const margin = 16;
+    const gap = 8;
+    const spaceAbove = Math.max(0, anchor.top - margin - gap);
+    const spaceBelow = Math.max(0, window.innerHeight - anchor.bottom - margin - gap);
+    const flipBelow = spaceBelow > spaceAbove;
+    const available = flipBelow ? spaceBelow : spaceAbove;
+    menu.style.maxHeight = `${Math.max(160, available)}px`;
+    if (flipBelow) {
+      menu.style.bottom = "auto";
+      menu.style.top = "calc(100% + 8px)";
+    }
   }
 
   private hideAddMenu(): void {
@@ -624,36 +652,44 @@ export class Composer extends Component {
 
     const skills = this.skills.list();
     if (skills.length > 0) {
-      this.addMenuEl.createDiv({ cls: "obsidian-agents-add-menu-sep" });
-      const heading = this.addMenuEl.createDiv({ cls: "obsidian-agents-add-menu-heading" });
-      heading.setText("Skills");
-
+      const core = skills.filter((s) => (s.kind ?? "core") === "core");
+      const custom = skills.filter((s) => s.kind === "custom");
       const atCap = this.activeSkills.length >= MAX_ACTIVE_SKILLS;
-      for (const skill of skills) {
-        const active = this.activeSkills.some((s) => s.id === skill.id);
-        const disabled = !active && atCap;
-        const row = this.addMenuEl.createDiv({
-          cls: "obsidian-agents-add-menu-item obsidian-agents-add-menu-item-skill" +
-            (active ? " active" : "") +
-            (disabled ? " disabled" : ""),
-          attr: { title: skill.description },
-        });
-        const icon = row.createSpan({ cls: "obsidian-agents-add-menu-item-icon" });
-        setIcon(icon, skill.icon ?? "sparkles");
-        row.createSpan({
-          cls: "obsidian-agents-add-menu-item-label",
-          text: skill.label,
-        });
-        if (active) {
-          const check = row.createSpan({ cls: "obsidian-agents-add-menu-item-check" });
-          setIcon(check, "check");
+
+      const renderSection = (title: string, list: Skill[]) => {
+        if (list.length === 0) return;
+        this.addMenuEl!.createDiv({ cls: "obsidian-agents-add-menu-sep" });
+        const heading = this.addMenuEl!.createDiv({ cls: "obsidian-agents-add-menu-heading" });
+        heading.setText(title);
+        for (const skill of list) {
+          const active = this.activeSkills.some((s) => s.id === skill.id);
+          const disabled = !active && atCap;
+          const row = this.addMenuEl!.createDiv({
+            cls: "obsidian-agents-add-menu-item obsidian-agents-add-menu-item-skill" +
+              (active ? " active" : "") +
+              (disabled ? " disabled" : ""),
+            attr: { title: skill.description },
+          });
+          const icon = row.createSpan({ cls: "obsidian-agents-add-menu-item-icon" });
+          setIcon(icon, skill.icon ?? "sparkles");
+          row.createSpan({
+            cls: "obsidian-agents-add-menu-item-label",
+            text: skill.label,
+          });
+          if (active) {
+            const check = row.createSpan({ cls: "obsidian-agents-add-menu-item-check" });
+            setIcon(check, "check");
+          }
+          row.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            if (disabled) return;
+            this.toggleSkill(skill);
+          });
         }
-        row.addEventListener("mousedown", (e) => {
-          e.preventDefault();
-          if (disabled) return;
-          this.toggleSkill(skill);
-        });
-      }
+      };
+
+      renderSection("Core skills", core);
+      renderSection("Custom skills", custom);
 
       if (atCap) {
         const note = this.addMenuEl.createDiv({ cls: "obsidian-agents-add-menu-note" });

@@ -3,7 +3,9 @@ import { automationSkill } from "./automation";
 import { dynamicLayoutSkill } from "./dynamicLayout";
 import { wikiSkill } from "./wiki";
 import { appletSkill } from "./applet";
+import { tutorSkill } from "./tutor";
 import { webSkill } from "./web";
+import { manageSkillsSkill } from "./manageSkills";
 
 // On-demand skills: only injected into the system prompt when the user
 // explicitly selects them from the slash-command popover. Keep general
@@ -14,7 +16,9 @@ export const SKILLS: Skill[] = [
   dynamicLayoutSkill,
   wikiSkill,
   appletSkill,
+  tutorSkill,
   webSkill,
+  manageSkillsSkill,
 ];
 
 export class SkillRegistry {

@@ -991,37 +991,114 @@ button.obsidian-agents-message-action-btn:hover {
   font-size: 12px;
 }
 
-/* --- Markdown tables (rendered by Obsidian's MarkdownRenderer) --- */
+/* --- Markdown tables (ChatGPT-style: borderless, minimal row rules) --- */
+/* Wrapper injected post-render so the table can scroll horizontally and host
+   a copy-button toolbar above it. */
+.obsidian-agents-table-wrap {
+  position: relative;
+  margin: 14px 0;
+  max-width: 100%;
+}
+
+.obsidian-agents-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 .obsidian-agents-message-bubble table,
 .obsidian-agents-layout-text table {
   border-collapse: collapse;
-  margin: 10px 0;
+  margin: 0;
   font-size: 14px;
-  width: auto;
-  max-width: 100%;
-  display: block;
-  overflow-x: auto;
+  width: 100%;
+  background: transparent;
+  border: none;
 }
 
 .obsidian-agents-message-bubble th,
 .obsidian-agents-message-bubble td,
 .obsidian-agents-layout-text th,
 .obsidian-agents-layout-text td {
-  border: 1px solid var(--background-modifier-border);
-  padding: 6px 10px;
+  border: none;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding: 10px 16px 10px 0;
   text-align: left;
   vertical-align: top;
+  background: transparent;
+}
+
+/* First column flush-left, no extra left padding. */
+.obsidian-agents-message-bubble th:first-child,
+.obsidian-agents-message-bubble td:first-child,
+.obsidian-agents-layout-text th:first-child,
+.obsidian-agents-layout-text td:first-child {
+  padding-left: 0;
 }
 
 .obsidian-agents-message-bubble thead th,
 .obsidian-agents-layout-text thead th {
-  background: var(--background-secondary);
+  background: transparent;
   font-weight: 600;
+  color: var(--text-normal);
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 10px;
 }
 
-.obsidian-agents-message-bubble tbody tr:nth-child(even),
-.obsidian-agents-layout-text tbody tr:nth-child(even) {
-  background: var(--background-secondary-alt, var(--background-secondary));
+/* Last row has no bottom border — matches ChatGPT's clean trailing edge. */
+.obsidian-agents-message-bubble tbody tr:last-child td,
+.obsidian-agents-layout-text tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Copy-table button: icon-only, sits at the table's top-right. Three states:
+     - table idle: fully hidden
+     - table hover: icon fades in at ~55% (muted)
+     - icon hover: brightens to 100% (normal text color)
+     - click -> swap to check, then fade the whole button out */
+.obsidian-agents-table-copy {
+  position: absolute;
+  top: -2px;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease-out, color 0.12s ease-out;
+  z-index: 1;
+  box-shadow: none;
+}
+
+.obsidian-agents-table-wrap:hover .obsidian-agents-table-copy {
+  opacity: 0.55;
+}
+
+.obsidian-agents-table-wrap:hover .obsidian-agents-table-copy:hover {
+  opacity: 1;
+  color: var(--text-normal);
+  background: transparent;
+}
+
+.obsidian-agents-table-copy svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Post-click: brief confirm flash, then fade the button away entirely. */
+.obsidian-agents-table-copy.obsidian-agents-table-copy-done,
+.obsidian-agents-table-wrap:hover
+  .obsidian-agents-table-copy.obsidian-agents-table-copy-done {
+  opacity: 0;
+  pointer-events: none;
+  color: var(--text-normal);
+  transition: opacity 0.9s ease-out 0.35s;
 }
 
 /* --- Composer --- */
