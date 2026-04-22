@@ -36,6 +36,7 @@ export class Composer extends Component {
   private commandSelectedIndex = 0;
   private activeSkill: Skill | null = null;
   private skillPillEl: HTMLElement | null = null;
+  private editorHostEl: HTMLElement | null = null;
   private skills = getSkillRegistry();
   private sendBtn: HTMLButtonElement;
   private expandBtn: HTMLButtonElement;
@@ -87,12 +88,16 @@ export class Composer extends Component {
       input.click();
     });
 
-    // Skill pill slot — an inline highlighted label rendered before the
-    // editor when the user invokes a slash command. Empty by default.
-    this.skillPillEl = inputRow.createDiv({ cls: "obsidian-agents-composer-skill-pill-slot" });
+    const editorHost = inputRow.createDiv({ cls: "obsidian-agents-composer-editor-host" });
+    this.editorHostEl = editorHost;
+
+    // Skill pill slot — lives inside the editor host, absolutely positioned
+    // at its top-left. Active state drives a first-line text-indent on CM6
+    // so the prompt flows around the pill like regular inline text. Empty
+    // by default.
+    this.skillPillEl = editorHost.createDiv({ cls: "obsidian-agents-composer-skill-pill-slot" });
     this.skillPillEl.style.display = "none";
 
-    const editorHost = inputRow.createDiv({ cls: "obsidian-agents-composer-editor-host" });
     this.editor = new LivePreviewEditor(editorHost, {
       placeholder: "Ask anything",
       onChange: () => {
@@ -437,7 +442,10 @@ export class Composer extends Component {
       const row = this.commandPopoverEl.createDiv({ cls: "obsidian-agents-command-item" });
 
       const main = row.createDiv({ cls: "obsidian-agents-command-item-main" });
-      main.createSpan({ cls: "obsidian-agents-command-item-id", text: skill.id });
+      main.createSpan({
+        cls: "obsidian-agents-command-item-id",
+        text: "/" + skill.id.replace(/^\//, ""),
+      });
       main.createSpan({ cls: "obsidian-agents-command-item-label", text: skill.label });
       row.createDiv({ cls: "obsidian-agents-command-item-desc", text: skill.description });
 
@@ -487,6 +495,10 @@ export class Composer extends Component {
 
     if (!this.activeSkill) {
       this.skillPillEl.style.display = "none";
+      if (this.editorHostEl) {
+        this.editorHostEl.removeAttribute("data-skill-active");
+        this.editorHostEl.style.removeProperty("--skill-pill-width");
+      }
       return;
     }
 
@@ -501,8 +513,22 @@ export class Composer extends Component {
     });
     pill.createSpan({
       cls: "obsidian-agents-composer-skill-pill-name",
-      text: this.activeSkill.id.slice(1),
+      text: this.activeSkill.id.replace(/^\//, ""),
     });
+
+    // Measure the pill's width in the next frame (after layout settles)
+    // and publish it as a CSS var so the editor's first line can indent
+    // by that amount. Subsequent wrapped lines ignore text-indent, so
+    // prose flows around the pill as if it were inline text.
+    if (this.editorHostEl) {
+      this.editorHostEl.setAttribute("data-skill-active", "true");
+      const host = this.editorHostEl;
+      const slot = this.skillPillEl;
+      requestAnimationFrame(() => {
+        const w = slot.offsetWidth;
+        if (w > 0) host.style.setProperty("--skill-pill-width", `${w + 6}px`);
+      });
+    }
   }
 
   private clearSkill(): void {

@@ -1976,21 +1976,30 @@ button.obsidian-agents-composer-send-btn:disabled {
 }
 
 /* --- Composer skill pill (highlighted command at start of input) --- */
-.obsidian-agents-composer-skill-pill-slot {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  padding-left: 2px;
+/* The pill sits absolutely-positioned over the editor's top-left corner.
+   When active, the editor host applies a CSS variable carrying the pill's
+   pixel width, which drives a first-line `text-indent` on the CM6 content
+   — so the first line of prose starts *after* the pill, and any wrapped
+   lines flow back to the left edge (native text-indent behaviour). The
+   result is that a /command behaves like regular inline text. */
+.obsidian-agents-composer-editor-host {
+  position: relative;
 }
 
-/* When the editor wraps to more than one line, keep the pill anchored to
-   the first line (top of the row) rather than floating mid-editor which
-   flex centering would otherwise cause. Pair with the editor's own top
-   padding so the baseline lines up with the first row of text. */
-.obsidian-agents-composer-input-row:has(.cm-content > .cm-line ~ .cm-line)
-  > .obsidian-agents-composer-skill-pill-slot {
-  align-self: flex-start;
-  padding-top: 4px;
+.obsidian-agents-composer-skill-pill-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  padding-top: 2px;
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.obsidian-agents-composer-editor-host[data-skill-active="true"]
+  .obsidian-agents-composer-cm .cm-line:first-child {
+  text-indent: var(--skill-pill-width, 0px);
 }
 
 .obsidian-agents-composer-skill-pill {

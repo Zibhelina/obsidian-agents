@@ -64,7 +64,7 @@ You must **only** claim a task was scheduled if you *actually invoked* a schedul
 Honesty over theatrics: a clear "I can't schedule from here" is always better than a fabricated "Scheduled" that silently does nothing.`;
 
 export const automationSkill: Skill = {
-  id: "/automation",
+  id: "automation",
   label: "Automation",
   description: "Schedule a task or cron; deliver the result back to a chat, note, or toast.",
   systemPrompt: AUTOMATION_PROMPT,

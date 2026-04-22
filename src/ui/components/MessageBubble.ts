@@ -88,7 +88,7 @@ export class MessageBubble extends Component {
         });
         pill.createSpan({
           cls: "obsidian-agents-composer-skill-pill-name",
-          text: this.message.skillId,
+          text: this.message.skillId.replace(/^\//, ""),
         });
         this.contentEl.appendText(" ");
       }

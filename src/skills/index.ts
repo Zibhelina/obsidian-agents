@@ -1,11 +1,21 @@
 import type { Skill } from "./types";
 import { automationSkill } from "./automation";
+import { dynamicLayoutSkill } from "./dynamicLayout";
+import { wikiSkill } from "./wiki";
+import { appletSkill } from "./applet";
+import { webSkill } from "./web";
 
 // On-demand skills: only injected into the system prompt when the user
 // explicitly selects them from the slash-command popover. Keep general
 // always-on skills (reasoning trace, layouts, applets) inlined in hermes.ts
 // so every request gets them without extra cost.
-export const SKILLS: Skill[] = [automationSkill];
+export const SKILLS: Skill[] = [
+  automationSkill,
+  dynamicLayoutSkill,
+  wikiSkill,
+  appletSkill,
+  webSkill,
+];
 
 export class SkillRegistry {
   private byId = new Map<string, Skill>();
@@ -26,13 +36,15 @@ export class SkillRegistry {
     return Array.from(this.byId.values());
   }
 
-  // Fuzzy filter by id (minus slash) or label.
+  // Fuzzy filter by id or label. The leading slash in queries (and any
+  // stored ids that still carry one) is stripped so callers don't have to
+  // care about the sigil — it's a display concern, not an identity one.
   filter(query: string): Skill[] {
     const q = query.toLowerCase().replace(/^\//, "");
     if (!q) return this.list();
     return this.list().filter(
       (s) =>
-        s.id.slice(1).toLowerCase().includes(q) ||
+        s.id.replace(/^\//, "").toLowerCase().includes(q) ||
         s.label.toLowerCase().includes(q)
     );
   }
