@@ -1976,30 +1976,34 @@ button.obsidian-agents-composer-send-btn:disabled {
 }
 
 /* --- Composer skill pill (highlighted command at start of input) --- */
-/* The pill sits absolutely-positioned over the editor's top-left corner.
-   When active, the editor host applies a CSS variable carrying the pill's
-   pixel width, which drives a first-line `text-indent` on the CM6 content
-   — so the first line of prose starts *after* the pill, and any wrapped
-   lines flow back to the left edge (native text-indent behaviour). The
-   result is that a /command behaves like regular inline text. */
+/* The pill sits absolutely-positioned so its baseline lines up with CM6's
+   first text line, and drives a first-line `text-indent` on `.cm-content`
+   so the prompt flows around it like inline text (wrapped lines return to
+   the left edge — native text-indent behaviour). */
 .obsidian-agents-composer-editor-host {
   position: relative;
 }
 
 .obsidian-agents-composer-skill-pill-slot {
   position: absolute;
-  top: 0;
+  /* `top` and `height` are set in JS to match CM6's first line rect. */
   left: 0;
   display: inline-flex;
   align-items: center;
-  padding-top: 2px;
   pointer-events: auto;
   z-index: 1;
 }
 
 .obsidian-agents-composer-editor-host[data-skill-active="true"]
-  .obsidian-agents-composer-cm .cm-line:first-child {
+  .obsidian-agents-composer-cm .cm-content > .cm-line:first-child {
   text-indent: var(--skill-pill-width, 0px);
+}
+
+/* Placeholder lives inside the first line — indent it the same way so it
+   doesn't sit under the pill when the editor is empty. */
+.obsidian-agents-composer-editor-host[data-skill-active="true"]
+  .obsidian-agents-composer-cm .cm-line:first-child .cm-placeholder {
+  padding-left: var(--skill-pill-width, 0px);
 }
 
 .obsidian-agents-composer-skill-pill {
@@ -2007,8 +2011,10 @@ button.obsidian-agents-composer-send-btn:disabled {
   align-items: baseline;
   color: var(--interactive-accent);
   font-weight: 600;
-  font-size: 14px;
-  line-height: 1.4;
+  /* Inherit the editor's font metrics so the pill's baseline matches the
+     first text line exactly — no hardcoded size/line-height drift. */
+  font-size: inherit;
+  line-height: inherit;
   white-space: nowrap;
   user-select: none;
 }

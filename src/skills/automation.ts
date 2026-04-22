@@ -2,71 +2,80 @@ import type { Skill } from "./types";
 
 const AUTOMATION_PROMPT = `## Automation & scheduling skill (active)
 
-The user has explicitly activated the /automation skill for this turn. They likely want you to schedule, queue, or run a background/deferred task whose result should be delivered back **after** the current reply finishes.
+The user has explicitly activated the /automation skill. They want a background/deferred task whose result is delivered back **after** the current reply finishes, via the plugin's local HTTP callback server.
 
-The Obsidian Agents plugin runs a small local HTTP callback server. Any scheduled job can POST its final output back to that server, and the plugin routes the result into the correct destination in the user's vault or chat.
+## You MUST deliver the result via the callback server
 
-The scheduler/agent framework is expected to accept these fields when creating a job (exact field names depend on your framework, but the *concepts* are stable):
+This skill exists specifically to make scheduled jobs reply back into the Obsidian UI. When you create the scheduled job, you MUST:
 
-- \`callback_url\` — the plugin's callback endpoint (injected into this conversation as \`OBSIDIAN_AGENTS_CALLBACK_URL\` in the "Runtime context" block below).
-- \`callback_token\` — the bearer token (injected as \`OBSIDIAN_AGENTS_CALLBACK_TOKEN\`).
-- \`delivery\` — a JSON object with:
-  - \`channel\`: one of the channel ids below.
-  - \`sessionId\`: the current session id (injected as \`OBSIDIAN_AGENTS_SESSION_ID\`) — required for the \`chat\` channel.
-  - \`target\`: channel-specific target (e.g. vault path for \`note\`).
-- \`payload\`: \`{ content: string, title?: string, metadata?: object }\` — the actual result body.
+1. Read \`OBSIDIAN_AGENTS_CALLBACK_URL\`, \`OBSIDIAN_AGENTS_CALLBACK_TOKEN\`, and \`OBSIDIAN_AGENTS_SESSION_ID\` from the Runtime context block below. If any of those are missing, stop — the callback server is disabled and you must tell the user to enable it in settings (do not pretend to schedule).
+2. Inside the scheduled job's body/instructions, write the code (or prompt) that POSTs the result to \`OBSIDIAN_AGENTS_CALLBACK_URL\` with the exact JSON contract shown below. The scheduler itself does not auto-deliver anything — **you** are responsible for wiring the callback into the job's execution.
+3. After scheduling succeeds, confirm the destination back to the user in one short line (e.g. "I'll post the result back here when it fires.").
 
-### Available channels
-
-- **\`chat\`** *(default)* — Append the result as a new agent message in the chat that scheduled the job. Use when the user says "reply here", "let me know in this chat", or doesn't specify a destination.
-- **\`new-chat\`** — Create a new chat session and post the result there. Use when the user says "reply in a new chat" or "open a separate thread".
-- **\`note\`** — Append the result to a markdown file inside the vault. Requires \`target\` (vault-relative path, e.g. \`"Daily/Summary.md"\`). Use when the user says "save the result to X.md", "write it to a note", or names a file.
-- **\`notice\`** — Show the result as a transient Obsidian toast. Use when the user says "just a notification" or "let me know when it's done" without wanting a persistent record.
-
-### How to choose
-
-1. If the user *named a destination* in their request (a file, "a new chat", "just a toast"), honor it exactly.
-2. If the user said "reply/answer/follow up *here*" or anything pointing at the current conversation, use \`chat\`.
-3. If the user didn't specify, **default to \`chat\`** so the result lands where they asked for the task.
-4. After scheduling, confirm the channel in your reply in one short line (e.g. "I'll post the summary back here when it runs." or "I'll append it to \`Daily/Summary.md\`."). That lets the user redirect before the job fires.
-
-### Callback HTTP contract (for whichever scheduler you use)
-
-The scheduler — whether it's your gateway's built-in scheduler, a separate cron runner, or an external service — should POST to \`callback_url\` with:
+### The callback HTTP contract (copy this verbatim into the scheduled job)
 
 \`\`\`
-Authorization: Bearer <callback_token>
+POST <OBSIDIAN_AGENTS_CALLBACK_URL>
+Authorization: Bearer <OBSIDIAN_AGENTS_CALLBACK_TOKEN>
 Content-Type: application/json
 
 {
-  "channel": "chat" | "new-chat" | "note" | "notice",
-  "sessionId": "<session id>",
-  "target": "Daily/Summary.md",
+  "channel": "chat",
+  "sessionId": "<OBSIDIAN_AGENTS_SESSION_ID>",
   "payload": {
-    "content": "...markdown body...",
-    "title": "optional short label",
-    "metadata": { "jobId": "...", "firedAt": "..." }
+    "content": "...final markdown body the user should see...",
+    "title": "optional short label"
   }
 }
 \`\`\`
 
-If the callback URL / token / session id are **not** present in the Runtime context block below, the plugin's callback server is disabled; warn the user that scheduled results can't be delivered back until they enable it in settings.
+The plugin responds with \`200 { ok: true }\` on success. A 4xx/5xx means the job should log the error — do not retry silently in a tight loop.
 
-### Critical: do not fake success
+## Channel selection — default to \`chat\`, not \`notice\`
 
-You must **only** claim a task was scheduled if you *actually invoked* a scheduler tool or API and received a success response. If no scheduler/cron/queue tool is exposed to you in this conversation:
+**\`chat\` is the default. Always use \`chat\` unless the user explicitly asked for something else.** The user picked this skill so the result lands where the work was requested — the chat session. Toast notifications are not a substitute.
 
-- Do **not** say "Done", "Scheduled", "I've set that up", or emit a fake job id / confirmation.
-- Do **not** emit placeholder code fences pretending to be an applet, a cron entry, or a tool invocation to simulate scheduling — an applet is a user-facing mini-app, not a scheduler, and this skill is not about applets.
-- Instead, tell the user plainly: "I don't have a scheduler tool available in this environment. To schedule this, you'll need to enable a cron/scheduler tool in the Hermes gateway (it should POST the result to \`callback_url\` using the contract above)."
-- Then offer to do the task *now* if that's useful, or help the user configure scheduling.
+| channel    | when to use                                                                          | required fields                             |
+|------------|--------------------------------------------------------------------------------------|---------------------------------------------|
+| \`chat\`     | **Default.** User said "reply here", "let me know", "tell me when done", or nothing. | \`sessionId\` (from runtime context)          |
+| \`new-chat\` | User explicitly said "in a new chat" / "separate thread".                            | none (creates a new session)                |
+| \`note\`     | User named a markdown file to write to ("save to X.md").                             | \`target\` (vault-relative path, e.g. "X.md") |
+| \`notice\`   | User explicitly asked for "just a notification" / "just a toast".                    | none                                        |
 
-Honesty over theatrics: a clear "I can't schedule from here" is always better than a fabricated "Scheduled" that silently does nothing.`;
+Do not pick \`notice\` just because the message is short or the result is trivial. A toast disappears — the user cannot reread it. **If in doubt, use \`chat\`.**
+
+Examples (explicit routing):
+
+- "Write 'Hello world' here in 1 minute" → \`channel: "chat"\`, use the current sessionId.
+- "In 5 minutes, open a new chat and summarize today's news" → \`channel: "new-chat"\`.
+- "Every morning at 8am, append a daily digest to Notes/Digest.md" → \`channel: "note"\`, \`target: "Notes/Digest.md"\`.
+- "Ping me with a toast when the build is done" → \`channel: "notice"\`.
+
+## Scheduling sub-minute delays
+
+Many cron/scheduler implementations have a minimum granularity of 1 minute. If the user asks for a delay under 1 minute (e.g. "in 30 seconds") and the scheduler rejects it, try these in order:
+
+1. Use the scheduler's one-shot / delayed-run tool instead of cron syntax (often supports seconds).
+2. Fall back to a \`sleep N && curl …\` style shell job if the gateway exposes shell execution.
+3. Schedule at the minimum-allowed delay and tell the user what you did: "The scheduler's minimum is 1 min, so I scheduled for 1 min from now."
+
+Never silently round up without telling the user. And never claim you scheduled for 30s when you actually scheduled for 1min.
+
+## Critical: do not fake success
+
+You must only claim a task was scheduled if you *actually invoked* a scheduler tool and received a success response. If no scheduler/cron/queue tool is exposed to you in this conversation:
+
+- Do **not** say "Done" / "Scheduled" / "I've set that up".
+- Do **not** emit placeholder code fences pretending to be an applet, a cron entry, or a tool invocation. An applet is a user-facing mini-app, unrelated to scheduling.
+- Say plainly: "I don't have a scheduler tool available in this Hermes configuration. Enable a cron/scheduler tool so it can POST to the callback URL using the contract above."
+- Then offer to do the task *now* if that works, or help the user configure scheduling.
+
+Honesty beats theatrics — a clear "I can't schedule from here" is always better than a fabricated "Scheduled" that silently does nothing.`;
 
 export const automationSkill: Skill = {
   id: "automation",
   label: "Automation",
-  description: "Schedule a task or cron; deliver the result back to a chat, note, or toast.",
+  description: "Schedule a task; deliver the result back to this chat (default), a new chat, a note, or a toast.",
   systemPrompt: AUTOMATION_PROMPT,
   injectCallbackContext: true,
 };
