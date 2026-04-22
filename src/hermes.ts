@@ -176,9 +176,10 @@ export interface RuntimeContext {
   sessionId: string | null;
   callbackUrl: string | null;
   callbackToken: string | null;
-  // When set, the matching skill's prompt is appended to the system message
-  // and the callback runtime fields are only emitted if the skill needs them.
-  skillId?: string | null;
+  // Skills invoked for this turn. Each skill's prompt is appended to the
+  // system message. The callback runtime block is emitted if *any* of the
+  // active skills need it.
+  skillIds?: string[];
 }
 
 function buildRuntimeContextBlock(ctx: RuntimeContext): string | null {
@@ -199,13 +200,15 @@ function buildMessages(
   const hasSystem = history.some((m) => m.role === "system");
   if (!hasSystem) {
     let prompt = OBSIDIAN_AGENTS_SYSTEM_PROMPT;
-    const skill = runtime?.skillId ? registry?.get(runtime.skillId) : undefined;
-    if (skill) {
+    const skills = (runtime?.skillIds ?? [])
+      .map((id) => registry?.get(id))
+      .filter((s): s is NonNullable<typeof s> => !!s);
+    for (const skill of skills) {
       prompt += `\n\n${skill.systemPrompt}`;
     }
-    // Only attach the callback runtime block when the active skill needs it.
-    // Keeps the per-turn prompt tight when no skill is selected.
-    if (skill?.injectCallbackContext && runtime) {
+    // Only attach the callback runtime block when at least one active skill
+    // needs it. Keeps the per-turn prompt tight when no skill is selected.
+    if (skills.some((s) => s.injectCallbackContext) && runtime) {
       const runtimeBlock = buildRuntimeContextBlock(runtime);
       if (runtimeBlock) prompt += runtimeBlock;
     }

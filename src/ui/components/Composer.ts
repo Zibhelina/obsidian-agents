@@ -7,36 +7,33 @@ import { generateId } from "../../lib/id";
 import { LivePreviewEditor } from "./LivePreviewEditor";
 
 const EXPAND_THRESHOLD = 80;
+const MAX_ACTIVE_SKILLS = 3;
 
 /**
- * Composer: attach + reply quote + mention chips + CM6 live-preview editor + send.
+ * Composer: attach + reply quote + mention chips + skill chips + CM6 editor + send.
  *
- * The text input is a CodeMirror 6 editor configured to render markdown
- * (headings, bold/italic, code fences, inline code, blockquote, lists) in
- * place on any line the cursor isn't currently on — a pragmatic clone of
- * Obsidian's native Live Preview for use inside a composer.
+ * The `+` button opens a ChatGPT-style popup with "Attach file" and the list
+ * of opt-in skills. Selected skills show as chips in a row below the editor,
+ * stacking horizontally (max 3). The editor's placeholder reflects the last
+ * activated skill when the input is empty.
  */
 export class Composer extends Component {
   containerEl: HTMLElement;
   private editor: LivePreviewEditor;
   private chipsEl: HTMLElement;
+  private skillChipsEl: HTMLElement;
   private quoteEl: HTMLElement;
   private attachmentsEl: HTMLElement;
   private attachments: Attachment[] = [];
   private mentions: MentionItem[] = [];
+  private activeSkills: Skill[] = [];
   private replyQuote: string | null = null;
-  private onSend: (text: string, attachments: Attachment[], skillId?: string | null) => void;
+  private onSend: (text: string, attachments: Attachment[], skillIds?: string[]) => void;
   private onAbort: (() => void) | null = null;
   private streaming = false;
   private mentionPopover: MentionPopover | null = null;
-  private commandPopoverEl: HTMLElement | null = null;
-  private commandQuery = "";
-  private commandStartIndex = -1;
-  private commandItems: Skill[] = [];
-  private commandSelectedIndex = 0;
-  private activeSkill: Skill | null = null;
-  private skillPillEl: HTMLElement | null = null;
-  private editorHostEl: HTMLElement | null = null;
+  private addMenuEl: HTMLElement | null = null;
+  private addBtn: HTMLButtonElement;
   private skills = getSkillRegistry();
   private sendBtn: HTMLButtonElement;
   private expandBtn: HTMLButtonElement;
@@ -49,7 +46,7 @@ export class Composer extends Component {
 
   constructor(
     container: HTMLElement,
-    onSend: (text: string, attachments: Attachment[], skillId?: string | null) => void,
+    onSend: (text: string, attachments: Attachment[], skillIds?: string[]) => void,
     onAbort?: () => void
   ) {
     super();
@@ -71,41 +68,26 @@ export class Composer extends Component {
 
     const inputRow = inputWrap.createDiv({ cls: "obsidian-agents-composer-input-row" });
 
-    const attachBtn = inputRow.createEl("button", {
+    this.addBtn = inputRow.createEl("button", {
       cls: "obsidian-agents-composer-attach-btn",
-      attr: { "aria-label": "Attach file" },
+      attr: { "aria-label": "Attach or add skill" },
     });
-    setIcon(attachBtn, "plus");
-    this.registerDomEvent(attachBtn, "click", () => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.multiple = true;
-      input.onchange = () => {
-        const files = input.files;
-        if (!files) return;
-        for (const f of Array.from(files)) this.handleFile(f);
-      };
-      input.click();
+    setIcon(this.addBtn, "plus");
+    this.registerDomEvent(this.addBtn, "click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.toggleAddMenu();
     });
 
     const editorHost = inputRow.createDiv({ cls: "obsidian-agents-composer-editor-host" });
-    this.editorHostEl = editorHost;
-
-    // Skill pill slot — lives inside the editor host, absolutely positioned
-    // at its top-left. Active state drives a first-line text-indent on CM6
-    // so the prompt flows around the pill like regular inline text. Empty
-    // by default.
-    this.skillPillEl = editorHost.createDiv({ cls: "obsidian-agents-composer-skill-pill-slot" });
-    this.skillPillEl.style.display = "none";
 
     this.editor = new LivePreviewEditor(editorHost, {
       placeholder: "Ask anything",
       onChange: () => {
         this.autoResize();
-        this.handleInput();
+        this.updatePlaceholder();
         this.updateSendButton();
         this.fireInput();
-        // Direct call — guaranteed to fire even if the Set adapter has issues.
         this.mentionPopover?.onEditorChange();
       },
       onSubmit: () => this.send(),
@@ -119,6 +101,10 @@ export class Composer extends Component {
     });
     setIcon(this.sendBtn, "arrow-up");
     this.updateSendButton();
+
+    // Skill chip row, rendered BELOW the editor input (ChatGPT-style).
+    this.skillChipsEl = inputWrap.createDiv({ cls: "obsidian-agents-composer-skill-chips" });
+    this.skillChipsEl.style.display = "none";
 
     this.expandBtn = inputWrap.createEl("button", {
       cls: "obsidian-agents-composer-expand-btn",
@@ -139,6 +125,14 @@ export class Composer extends Component {
         this.send();
       }
     });
+
+    // Dismiss the add-menu when clicking elsewhere.
+    this.registerDomEvent(document, "click", (e) => {
+      if (!this.addMenuEl) return;
+      const target = e.target as Node;
+      if (this.addMenuEl.contains(target) || this.addBtn.contains(target)) return;
+      this.hideAddMenu();
+    });
   }
 
   setStreaming(streaming: boolean): void {
@@ -147,9 +141,6 @@ export class Composer extends Component {
   }
 
   private renderExpandIcon(expanded: boolean): void {
-    // Use an inline SVG so the icon renders reliably regardless of whether
-    // Obsidian's lucide sprite is loaded. Matches the "dot" bug where
-    // setIcon would sometimes leave a zero-sized svg behind.
     const maximize =
       '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
     const close =
@@ -162,10 +153,6 @@ export class Composer extends Component {
     void this.app;
   }
 
-  /**
-   * Adapter that exposes a textarea-like surface over the CM6 editor so
-   * MentionPopover can attach to it unchanged.
-   */
   getTextInput(): TextInputLike {
     const self = this;
     return {
@@ -197,44 +184,29 @@ export class Composer extends Component {
   }
 
   private handleEditorKeyDown(evt: KeyboardEvent): boolean {
-    // Command popover gets priority.
-    if (this.commandPopoverEl && this.commandPopoverEl.style.display !== "none") {
-      if (evt.key === "ArrowDown") {
-        this.commandSelectedIndex = (this.commandSelectedIndex + 1) % this.commandItems.length;
-        this.renderCommandItems();
-        return true;
-      } else if (evt.key === "ArrowUp") {
-        this.commandSelectedIndex =
-          (this.commandSelectedIndex - 1 + this.commandItems.length) % this.commandItems.length;
-        this.renderCommandItems();
-        return true;
-      } else if (evt.key === "Enter" || evt.key === "Tab") {
-        this.selectCommand(this.commandItems[this.commandSelectedIndex]);
-        return true;
-      } else if (evt.key === "Escape") {
-        this.hideCommandPopover();
-        return true;
-      }
-    }
-
-    // Forward to mention popover listeners (capture phase).
     for (const fn of this.keydownListeners) fn(evt);
     if (evt.defaultPrevented) return true;
+
+    if (evt.key === "Escape" && this.addMenuEl) {
+      this.hideAddMenu();
+      return true;
+    }
 
     if (evt.key === "Backspace") {
       const cursor = this.editor.getCursor();
       const sel = this.editor.getSelectionRange();
       const atStart = cursor === 0 && sel.from === 0 && sel.to === 0;
       if (atStart) {
-        // Backspace at position 0 peels off items in visual order:
-        // mention chips first (right of pill), then the skill pill.
         if (this.mentions.length > 0) {
           this.mentions.pop();
           this.renderChips();
           return true;
         }
-        if (this.activeSkill) {
-          this.clearSkill();
+        if (this.activeSkills.length > 0) {
+          this.activeSkills.pop();
+          this.renderSkillChips();
+          this.updatePlaceholder();
+          this.updateSendButton();
           return true;
         }
       }
@@ -344,12 +316,58 @@ export class Composer extends Component {
     }
   }
 
+  private renderSkillChips(): void {
+    this.skillChipsEl.empty();
+    if (this.activeSkills.length === 0) {
+      this.skillChipsEl.style.display = "none";
+      return;
+    }
+    this.skillChipsEl.style.display = "flex";
+    for (const skill of this.activeSkills) {
+      const chip = this.skillChipsEl.createDiv({
+        cls: "obsidian-agents-composer-skill-chip",
+        attr: { title: skill.description },
+      });
+      const iconEl = chip.createSpan({ cls: "obsidian-agents-composer-skill-chip-icon" });
+      setIcon(iconEl, skill.icon ?? "sparkles");
+      chip.createSpan({
+        cls: "obsidian-agents-composer-skill-chip-label",
+        text: skill.label,
+      });
+      const remove = chip.createEl("button", {
+        cls: "obsidian-agents-composer-skill-chip-remove",
+        attr: { "aria-label": `Remove ${skill.label}` },
+      });
+      setIcon(remove, "x");
+      remove.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.activeSkills = this.activeSkills.filter((s) => s.id !== skill.id);
+        this.renderSkillChips();
+        this.updatePlaceholder();
+        this.updateSendButton();
+        this.editor.focus();
+      });
+    }
+  }
+
   private autoResize(): void {
     const value = this.editor.getValue();
     const multiLine = value.includes("\n");
     const showExpand =
       this.expanded || multiLine || value.length >= EXPAND_THRESHOLD;
     this.expandBtn.style.display = showExpand ? "inline-flex" : "none";
+  }
+
+  /**
+   * When a skill is active and the editor is empty, surface the skill's
+   * custom placeholder ("Search the web", "Learn something new", …). As
+   * soon as the user types, CM6 hides its placeholder automatically.
+   */
+  private updatePlaceholder(): void {
+    const last = this.activeSkills[this.activeSkills.length - 1];
+    const placeholder = last?.placeholder ?? "Ask anything";
+    this.editor.setPlaceholder(placeholder);
   }
 
   setExpanded(expanded: boolean): void {
@@ -385,174 +403,118 @@ export class Composer extends Component {
       this.editor.getValue().trim().length > 0 ||
       this.attachments.length > 0 ||
       this.mentions.length > 0 ||
+      this.activeSkills.length > 0 ||
       this.replyQuote != null;
     this.sendBtn.disabled = !hasContent;
   }
 
-  private handleInput(): void {
-    // One skill at a time — don't try to stack commands. If a skill is
-    // already active, typing "/" just enters literal text.
-    if (this.activeSkill) {
-      this.hideCommandPopover();
-      return;
-    }
+  // --- Add menu (attach + skills) -------------------------------------
 
-    const cursor = this.editor.getCursor();
-    const text = this.editor.getValue();
-    const beforeCursor = text.slice(0, cursor);
-
-    // Only trigger at the very start of the composer (position 0) — matches
-    // the screenshot UX where the slash command becomes a pill at the head
-    // of the input, not mid-sentence.
-    if (beforeCursor.startsWith("/") && !beforeCursor.includes(" ") && !beforeCursor.includes("\n")) {
-      this.commandQuery = beforeCursor.slice(1);
-      this.commandStartIndex = 0;
-      this.commandItems = this.skills.filter(this.commandQuery);
-      this.commandSelectedIndex = 0;
-      this.showCommandPopover();
+  private toggleAddMenu(): void {
+    if (this.addMenuEl && this.addMenuEl.style.display !== "none") {
+      this.hideAddMenu();
     } else {
-      this.hideCommandPopover();
+      this.showAddMenu();
     }
   }
 
-  private showCommandPopover(): void {
-    if (!this.commandPopoverEl) {
+  private showAddMenu(): void {
+    if (!this.addMenuEl) {
       const inputWrap = this.containerEl.querySelector(
         ".obsidian-agents-composer-input-wrap"
       ) as HTMLElement;
-      this.commandPopoverEl = (inputWrap || this.containerEl).createDiv({
-        cls: "obsidian-agents-command-popover",
+      this.addMenuEl = (inputWrap || this.containerEl).createDiv({
+        cls: "obsidian-agents-add-menu",
       });
     }
-    this.renderCommandItems();
+    this.renderAddMenu();
+    this.addMenuEl.style.display = "block";
   }
 
-  private renderCommandItems(): void {
-    if (!this.commandPopoverEl) return;
-    this.commandPopoverEl.empty();
-
-    if (this.commandItems.length === 0) {
-      this.commandPopoverEl.style.display = "none";
-      return;
-    }
-
-    this.commandPopoverEl.style.display = "block";
-    for (let i = 0; i < this.commandItems.length; i++) {
-      const skill = this.commandItems[i];
-      const row = this.commandPopoverEl.createDiv({ cls: "obsidian-agents-command-item" });
-
-      const main = row.createDiv({ cls: "obsidian-agents-command-item-main" });
-      main.createSpan({
-        cls: "obsidian-agents-command-item-id",
-        text: "/" + skill.id.replace(/^\//, ""),
-      });
-      main.createSpan({ cls: "obsidian-agents-command-item-label", text: skill.label });
-      row.createDiv({ cls: "obsidian-agents-command-item-desc", text: skill.description });
-
-      if (i === this.commandSelectedIndex) {
-        row.addClass("selected");
-      }
-      row.addEventListener("mouseenter", () => {
-        this.commandSelectedIndex = i;
-        this.commandPopoverEl?.querySelectorAll(".obsidian-agents-command-item.selected").forEach(
-          (e) => e.removeClass("selected")
-        );
-        row.addClass("selected");
-      });
-      row.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        this.selectCommand(skill);
-      });
-    }
+  private hideAddMenu(): void {
+    if (this.addMenuEl) this.addMenuEl.style.display = "none";
   }
 
-  private selectCommand(skill: Skill): void {
-    // Strip the typed "/query" from the editor and promote the skill into a
-    // visual pill at the start of the composer. The user's prompt text now
-    // starts on a clean slate.
-    if (this.commandStartIndex >= 0) {
-      const cursor = this.editor.getCursor();
-      this.editor.replaceRange(this.commandStartIndex, cursor, "");
-    }
-    this.activeSkill = skill;
-    this.renderSkillPill();
-    this.editor.focus();
-    this.hideCommandPopover();
-    this.updateSendButton();
-  }
+  private renderAddMenu(): void {
+    if (!this.addMenuEl) return;
+    this.addMenuEl.empty();
 
-  private hideCommandPopover(): void {
-    if (this.commandPopoverEl) {
-      this.commandPopoverEl.style.display = "none";
-    }
-    this.commandQuery = "";
-    this.commandItems = [];
-  }
-
-  private renderSkillPill(): void {
-    if (!this.skillPillEl) return;
-    this.skillPillEl.empty();
-
-    if (!this.activeSkill) {
-      this.skillPillEl.style.display = "none";
-      this.skillPillEl.style.removeProperty("top");
-      this.skillPillEl.style.removeProperty("height");
-      if (this.editorHostEl) {
-        this.editorHostEl.removeAttribute("data-skill-active");
-        this.editorHostEl.style.removeProperty("--skill-pill-width");
-      }
-      return;
-    }
-
-    this.skillPillEl.style.display = "inline-flex";
-    const pill = this.skillPillEl.createSpan({
-      cls: "obsidian-agents-composer-skill-pill",
-      attr: { title: this.activeSkill.description },
-    });
-    pill.createSpan({
-      cls: "obsidian-agents-composer-skill-pill-slash",
-      text: "/",
-    });
-    pill.createSpan({
-      cls: "obsidian-agents-composer-skill-pill-name",
-      text: this.activeSkill.id.replace(/^\//, ""),
+    // Attach file row — always first.
+    const attachRow = this.addMenuEl.createDiv({ cls: "obsidian-agents-add-menu-item" });
+    const attachIcon = attachRow.createSpan({ cls: "obsidian-agents-add-menu-item-icon" });
+    setIcon(attachIcon, "paperclip");
+    attachRow.createSpan({ cls: "obsidian-agents-add-menu-item-label", text: "Attach file" });
+    attachRow.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      this.hideAddMenu();
+      this.openFilePicker();
     });
 
-    // After layout settles: (a) publish the pill's width as a CSS var so
-    // the editor's first line can text-indent by that amount; (b) align
-    // the pill's vertical offset + font to CM6's first text line so size
-    // and baseline match the placeholder/cursor exactly. CM6 metrics vary
-    // across themes, so measure the live line rather than hardcode.
-    if (this.editorHostEl) {
-      this.editorHostEl.setAttribute("data-skill-active", "true");
-      const host = this.editorHostEl;
-      const slot = this.skillPillEl;
-      const pillEl = pill;
-      requestAnimationFrame(() => {
-        const firstLine = host.querySelector(".cm-content > .cm-line") as HTMLElement | null;
-        if (firstLine) {
-          const cs = getComputedStyle(firstLine);
-          pillEl.style.fontSize = cs.fontSize;
-          pillEl.style.lineHeight = cs.lineHeight;
-          pillEl.style.fontFamily = cs.fontFamily;
-          const hostRect = host.getBoundingClientRect();
-          const lineRect = firstLine.getBoundingClientRect();
-          slot.style.top = `${Math.max(0, lineRect.top - hostRect.top)}px`;
-          slot.style.height = `${lineRect.height}px`;
+    const skills = this.skills.list();
+    if (skills.length > 0) {
+      this.addMenuEl.createDiv({ cls: "obsidian-agents-add-menu-sep" });
+      const heading = this.addMenuEl.createDiv({ cls: "obsidian-agents-add-menu-heading" });
+      heading.setText("Skills");
+
+      const atCap = this.activeSkills.length >= MAX_ACTIVE_SKILLS;
+      for (const skill of skills) {
+        const active = this.activeSkills.some((s) => s.id === skill.id);
+        const disabled = !active && atCap;
+        const row = this.addMenuEl.createDiv({
+          cls: "obsidian-agents-add-menu-item obsidian-agents-add-menu-item-skill" +
+            (active ? " active" : "") +
+            (disabled ? " disabled" : ""),
+          attr: { title: skill.description },
+        });
+        const icon = row.createSpan({ cls: "obsidian-agents-add-menu-item-icon" });
+        setIcon(icon, skill.icon ?? "sparkles");
+        row.createSpan({
+          cls: "obsidian-agents-add-menu-item-label",
+          text: skill.label,
+        });
+        if (active) {
+          const check = row.createSpan({ cls: "obsidian-agents-add-menu-item-check" });
+          setIcon(check, "check");
         }
+        row.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          if (disabled) return;
+          this.toggleSkill(skill);
+        });
+      }
 
-        // Pill width has to be measured *after* the font was copied over
-        // so the indent reserves the right amount of horizontal space.
-        const w = slot.offsetWidth;
-        if (w > 0) host.style.setProperty("--skill-pill-width", `${w + 6}px`);
-      });
+      if (atCap) {
+        const note = this.addMenuEl.createDiv({ cls: "obsidian-agents-add-menu-note" });
+        note.setText(`Up to ${MAX_ACTIVE_SKILLS} skills per request.`);
+      }
     }
   }
 
-  private clearSkill(): void {
-    this.activeSkill = null;
-    this.renderSkillPill();
+  private toggleSkill(skill: Skill): void {
+    const idx = this.activeSkills.findIndex((s) => s.id === skill.id);
+    if (idx >= 0) {
+      this.activeSkills.splice(idx, 1);
+    } else {
+      if (this.activeSkills.length >= MAX_ACTIVE_SKILLS) return;
+      this.activeSkills.push(skill);
+    }
+    this.renderSkillChips();
+    this.updatePlaceholder();
     this.updateSendButton();
+    this.renderAddMenu();
+    this.editor.focus();
+  }
+
+  private openFilePicker(): void {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    input.onchange = () => {
+      const files = input.files;
+      if (!files) return;
+      for (const f of Array.from(files)) this.handleFile(f);
+    };
+    input.click();
   }
 
   private handleFile(file: File): void {
@@ -651,7 +613,14 @@ export class Composer extends Component {
 
   private send(): void {
     const text = this.editor.getValue().trim();
-    if (!text && this.attachments.length === 0 && this.mentions.length === 0) return;
+    if (
+      !text &&
+      this.attachments.length === 0 &&
+      this.mentions.length === 0 &&
+      this.activeSkills.length === 0
+    ) {
+      return;
+    }
 
     const mentionPrefix = this.mentions
       .map((m) => `@[${m.displayName}](${m.path})`)
@@ -669,18 +638,19 @@ export class Composer extends Component {
       : text;
     const fullText = `${quotePrefix}${bodyText}`;
 
-    const skillId = this.activeSkill?.id ?? null;
-    this.onSend(fullText, [...this.attachments], skillId);
+    const skillIds = this.activeSkills.map((s) => s.id);
+    this.onSend(fullText, [...this.attachments], skillIds);
     this.editor.setValue("");
     this.attachments = [];
     this.mentions = [];
     this.replyQuote = null;
-    this.activeSkill = null;
+    this.activeSkills = [];
     this.renderAttachments();
     this.renderChips();
     this.renderQuote();
-    this.renderSkillPill();
-    this.hideCommandPopover();
+    this.renderSkillChips();
+    this.updatePlaceholder();
+    this.hideAddMenu();
     this.updateSendButton();
     if (this.expanded) this.setExpanded(false);
     this.expandBtn.style.display = "none";

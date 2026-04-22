@@ -22,5 +22,7 @@ export const dynamicLayoutSkill: Skill = {
   id: "dynamic-layout",
   label: "Dynamic layout",
   description: "Compose the reply with rich layout blocks (hero, gallery, split, carousel, map).",
+  icon: "layout-grid",
+  placeholder: "Compose a rich, visual reply",
   systemPrompt: DYNAMIC_LAYOUT_PROMPT,
 };

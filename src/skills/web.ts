@@ -21,5 +21,7 @@ export const webSkill: Skill = {
   id: "web",
   label: "Web search",
   description: "Force the model to use web search and cite sources; no answering from memory.",
+  icon: "globe",
+  placeholder: "Search the web",
   systemPrompt: WEB_PROMPT,
 };

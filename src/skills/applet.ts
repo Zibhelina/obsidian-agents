@@ -24,5 +24,7 @@ export const appletSkill: Skill = {
   id: "applet",
   label: "Interactive applet",
   description: "Answer with an interactive in-chat applet (React or HTML) as the centrepiece.",
+  icon: "boxes",
+  placeholder: "Describe an interactive applet",
   systemPrompt: APPLET_PROMPT,
 };

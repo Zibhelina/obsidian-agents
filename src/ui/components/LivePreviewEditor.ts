@@ -1,4 +1,4 @@
-import { EditorState, RangeSetBuilder } from "@codemirror/state";
+import { EditorState, RangeSetBuilder, Compartment } from "@codemirror/state";
 import {
   EditorView,
   ViewUpdate,
@@ -424,6 +424,7 @@ export class LivePreviewEditor {
   readonly dom: HTMLElement;
   private view: EditorView;
   private onChange?: (value: string) => void;
+  private placeholderCompartment = new Compartment();
 
   constructor(parent: HTMLElement, opts: LivePreviewEditorOptions = {}) {
     this.dom = parent.createDiv({ cls: "obsidian-agents-composer-cm" });
@@ -449,7 +450,7 @@ export class LivePreviewEditor {
       doc: opts.initialValue || "",
       extensions: [
         EditorView.lineWrapping,
-        placeholder(opts.placeholder || "Ask anything"),
+        this.placeholderCompartment.of(placeholder(opts.placeholder || "Ask anything")),
         livePreviewPlugin,
         updateListener,
         keyHandler,
@@ -529,6 +530,12 @@ export class LivePreviewEditor {
 
   focus(): void {
     this.view.focus();
+  }
+
+  setPlaceholder(text: string): void {
+    this.view.dispatch({
+      effects: this.placeholderCompartment.reconfigure(placeholder(text)),
+    });
   }
 
   getEditorView(): EditorView {

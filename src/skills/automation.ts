@@ -76,6 +76,8 @@ export const automationSkill: Skill = {
   id: "automation",
   label: "Automation",
   description: "Schedule a task; deliver the result back to this chat (default), a new chat, a note, or a toast.",
+  icon: "clock",
+  placeholder: "Schedule a task",
   systemPrompt: AUTOMATION_PROMPT,
   injectCallbackContext: true,
 };

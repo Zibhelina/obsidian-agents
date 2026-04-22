@@ -2,6 +2,7 @@ import { Component, Notice, setIcon } from "obsidian";
 import { ChatMessage, LayoutBlock } from "../../types";
 import { ThinkingTrace } from "./ThinkingTrace";
 import { LayoutEngine } from "./LayoutEngine";
+import { getSkill } from "../../features/commands";
 
 export class MessageBubble extends Component {
   private el: HTMLElement;
@@ -76,21 +77,26 @@ export class MessageBubble extends Component {
       const displayText = this.message.content
         .replace(/@\[[^\]]*\]\([^)]*\)/g, "")
         .trim();
-      // If a slash skill was active, prepend a pill so the trace survives
-      // into the submitted bubble.
-      if (this.message.skillId) {
-        const pill = this.contentEl.createSpan({
-          cls: "obsidian-agents-composer-skill-pill",
+      // If slash skills were active, render a chip row above the text so
+      // the trace of which skills applied survives into the bubble.
+      const skillIds = this.message.skillIds ?? [];
+      if (skillIds.length > 0) {
+        const chipRow = this.contentEl.createDiv({
+          cls: "obsidian-agents-message-skill-chips",
         });
-        pill.createSpan({
-          cls: "obsidian-agents-composer-skill-pill-slash",
-          text: "/",
-        });
-        pill.createSpan({
-          cls: "obsidian-agents-composer-skill-pill-name",
-          text: this.message.skillId.replace(/^\//, ""),
-        });
-        this.contentEl.appendText(" ");
+        for (const id of skillIds) {
+          const skill = getSkill(id);
+          const chip = chipRow.createSpan({
+            cls: "obsidian-agents-message-skill-chip",
+            attr: skill ? { title: skill.description } : {},
+          });
+          const iconEl = chip.createSpan({ cls: "obsidian-agents-message-skill-chip-icon" });
+          setIcon(iconEl, skill?.icon ?? "sparkles");
+          chip.createSpan({
+            cls: "obsidian-agents-message-skill-chip-label",
+            text: skill?.label ?? id.replace(/^\//, ""),
+          });
+        }
       }
       this.contentEl.appendText(displayText || this.message.content);
     } else {

@@ -412,7 +412,7 @@ export default class ObsidianAgentsPlugin extends Plugin {
     text: string,
     attachments: Attachment[],
     handlers: StreamHandlers,
-    skillId: string | null = null
+    skillIds: string[] = []
   ): Promise<string | null> {
     const session = this.getSession(sessionId);
     if (!session) return null;
@@ -425,7 +425,7 @@ export default class ObsidianAgentsPlugin extends Plugin {
       content: text,
       attachments,
       timestamp: Date.now(),
-      skillId: skillId ?? undefined,
+      skillIds: skillIds.length > 0 ? skillIds : undefined,
     };
 
     // Resolve @mentions → build an API-only version with file bodies injected.
@@ -518,7 +518,7 @@ export default class ObsidianAgentsPlugin extends Plugin {
       sessionId,
       callbackUrl: this.getCallbackUrl(),
       callbackToken: this.settings.callbackEnabled ? this.getCallbackToken() : null,
-      skillId,
+      skillIds,
     });
     return agentMsgId;
   }

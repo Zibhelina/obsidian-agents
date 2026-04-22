@@ -22,10 +22,11 @@ export interface ChatMessage {
   attachments: Attachment[];
   timestamp: number;
   metadata?: MessageMetadata;
-  // Slash-skill invoked for this message (e.g. "automation"). User messages
-  // only. Rendered as a pill in the bubble so there's a visible trace that
-  // the skill was applied per-request.
-  skillId?: string;
+  // Slash-skills invoked for this message (e.g. ["automation", "web"]).
+  // User messages only. Rendered as chips in the bubble so there's a
+  // visible trace of which skills were applied per-request. Capped at 3
+  // by the composer UI.
+  skillIds?: string[];
 }
 
 export interface Attachment {

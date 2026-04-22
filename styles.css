@@ -1918,114 +1918,208 @@ button.obsidian-agents-composer-send-btn:disabled {
   margin-top: 1px;
 }
 
-/* --- Command popover --- */
-.obsidian-agents-command-popover {
+/* --- Add menu (attach + skills popup, ChatGPT-style) --- */
+.obsidian-agents-add-menu {
   position: absolute;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 8px);
   left: 8px;
   z-index: 1000;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
-  border-radius: 10px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
-  max-height: 240px;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  min-width: 240px;
+  max-height: 360px;
   overflow-y: auto;
-  min-width: 200px;
-  padding: 4px;
+  padding: 6px;
 }
 
-.obsidian-agents-command-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text-normal);
-  border-radius: 6px;
-  transition: background 0.1s;
+.obsidian-agents-add-menu-heading {
+  padding: 8px 12px 4px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.obsidian-agents-add-menu-sep {
+  height: 1px;
+  background: var(--background-modifier-border);
+  margin: 6px 4px;
+  opacity: 0.6;
+}
+
+.obsidian-agents-add-menu-item {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--text-normal);
+  transition: background 0.08s ease;
 }
 
-.obsidian-agents-command-item:hover,
-.obsidian-agents-command-item.selected {
+.obsidian-agents-add-menu-item:hover {
   background: var(--background-modifier-hover);
 }
 
-.obsidian-agents-command-item-main {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-}
-
-.obsidian-agents-command-item-id {
+.obsidian-agents-add-menu-item.active {
   color: var(--interactive-accent);
-  font-weight: 600;
-  font-family: var(--font-monospace);
-  font-size: 12px;
 }
 
-.obsidian-agents-command-item-label {
-  color: var(--text-normal);
+.obsidian-agents-add-menu-item.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.obsidian-agents-add-menu-item.disabled:hover {
+  background: transparent;
+}
+
+.obsidian-agents-add-menu-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.obsidian-agents-add-menu-item-icon .svg-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.obsidian-agents-add-menu-item-label {
+  flex: 1;
   font-weight: 500;
 }
 
-.obsidian-agents-command-item-desc {
-  color: var(--text-muted);
-  font-size: 11.5px;
-  line-height: 1.3;
-}
-
-/* --- Composer skill pill (highlighted command at start of input) --- */
-/* The pill sits absolutely-positioned so its baseline lines up with CM6's
-   first text line, and drives a first-line `text-indent` on `.cm-content`
-   so the prompt flows around it like inline text (wrapped lines return to
-   the left edge — native text-indent behaviour). */
-.obsidian-agents-composer-editor-host {
-  position: relative;
-}
-
-.obsidian-agents-composer-skill-pill-slot {
-  position: absolute;
-  /* `top` and `height` are set in JS to match CM6's first line rect. */
-  left: 0;
+.obsidian-agents-add-menu-item-check {
   display: inline-flex;
   align-items: center;
-  pointer-events: auto;
-  z-index: 1;
-}
-
-.obsidian-agents-composer-editor-host[data-skill-active="true"]
-  .obsidian-agents-composer-cm .cm-content > .cm-line:first-child {
-  text-indent: var(--skill-pill-width, 0px);
-}
-
-/* Placeholder lives inside the first line — indent it the same way so it
-   doesn't sit under the pill when the editor is empty. */
-.obsidian-agents-composer-editor-host[data-skill-active="true"]
-  .obsidian-agents-composer-cm .cm-line:first-child .cm-placeholder {
-  padding-left: var(--skill-pill-width, 0px);
-}
-
-.obsidian-agents-composer-skill-pill {
-  display: inline-flex;
-  align-items: baseline;
   color: var(--interactive-accent);
+}
+
+.obsidian-agents-add-menu-item-check .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.obsidian-agents-add-menu-note {
+  padding: 6px 12px 8px 12px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* --- Composer skill chips (ChatGPT-style row below the editor) --- */
+.obsidian-agents-composer-skill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px 0 10px;
+}
+
+.obsidian-agents-composer-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--interactive-accent) 16%, transparent);
+  color: var(--interactive-accent);
+  font-size: 12.5px;
   font-weight: 600;
-  /* Inherit the editor's font metrics so the pill's baseline matches the
-     first text line exactly — no hardcoded size/line-height drift. */
-  font-size: inherit;
-  line-height: inherit;
-  white-space: nowrap;
+  line-height: 1;
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 32%, transparent);
   user-select: none;
+  white-space: nowrap;
 }
 
-.obsidian-agents-composer-skill-pill-slash {
-  opacity: 0.75;
-  margin-right: 1px;
+.obsidian-agents-composer-skill-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.obsidian-agents-composer-skill-pill-name {
-  text-decoration: none;
+.obsidian-agents-composer-skill-chip-icon .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.obsidian-agents-composer-skill-chip-label {
+  letter-spacing: 0.01em;
+}
+
+.obsidian-agents-composer-skill-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin-left: 2px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.65;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.1s, opacity 0.1s;
+}
+
+.obsidian-agents-composer-skill-chip-remove:hover {
+  background: color-mix(in srgb, var(--interactive-accent) 25%, transparent);
+  opacity: 1;
+}
+
+.obsidian-agents-composer-skill-chip-remove .svg-icon {
+  width: 11px;
+  height: 11px;
+}
+
+/* --- Message bubble skill chips (trace of skills used) --- */
+.obsidian-agents-message-skill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.obsidian-agents-message-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+  color: var(--interactive-accent);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.obsidian-agents-message-skill-chip-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.obsidian-agents-message-skill-chip-icon .svg-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* The input-wrap must anchor absolutely-positioned popups (add menu). */
+.obsidian-agents-composer-input-wrap {
+  position: relative;
 }
 
 /* --- Applets --- */

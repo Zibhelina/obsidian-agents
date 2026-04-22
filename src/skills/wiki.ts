@@ -20,5 +20,7 @@ export const wikiSkill: Skill = {
   id: "wiki",
   label: "Wiki article",
   description: "Write a Wikipedia-style article about the topic (lead, infobox, sections, sources).",
+  icon: "book-open",
+  placeholder: "Learn something new",
   systemPrompt: WIKI_PROMPT,
 };
