@@ -201,6 +201,11 @@ export class ChatView extends ItemView {
   loadSession(session: ChatSession): void {
     this.currentSessionId = session.id;
     this.termPanel?.close();
+    // Close any open thinking-trace drawer — it's tied to a message in the
+    // previous session and shouldn't carry over when switching chats.
+    this.containerEl
+      .querySelector(".obsidian-agents-thinking-drawer")
+      ?.remove();
     this.messageList?.clear();
     for (const msg of session.messages) {
       this.messageList?.addMessage(msg, this.plugin);

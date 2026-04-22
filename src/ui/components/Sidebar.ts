@@ -48,7 +48,6 @@ export class Sidebar extends Component {
   private treeEl!: HTMLElement;
   private panelEl: HTMLElement;
   private expandBtn: HTMLElement;
-  private backdropEl: HTMLElement | null = null;
   private collapsed = false;
   private titleEl!: HTMLElement;
   private agentName: string;
@@ -109,23 +108,6 @@ export class Sidebar extends Component {
   private setCollapsed(value: boolean): void {
     this.collapsed = value;
     this.panelEl.toggleClass("obsidian-agents-sidebar-collapsed", value);
-    this.updateBackdrop();
-  }
-
-  private updateBackdrop(): void {
-    const isMobile = this.panelEl.offsetWidth <= 520 ||
-      (this.panelEl.parentElement?.offsetWidth ?? 9999) <= 520;
-    if (!this.collapsed && isMobile) {
-      if (!this.backdropEl) {
-        this.backdropEl = this.panelEl.parentElement!.createDiv({
-          cls: "obsidian-agents-sidebar-backdrop",
-        });
-        this.registerDomEvent(this.backdropEl, "click", () => this.setCollapsed(true));
-      }
-    } else {
-      this.backdropEl?.remove();
-      this.backdropEl = null;
-    }
   }
 
   setAgentName(name: string): void {

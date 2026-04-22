@@ -90,11 +90,22 @@ export class ThinkingTrace extends Component {
   }
 
   private openDrawer(): void {
+    // Host the drawer inside the chat view so it participates in the flex
+    // layout (split view) rather than floating above the chat.
+    const viewRoot = this.containerEl.closest(".obsidian-agents-view") as HTMLElement | null;
+    const host: HTMLElement = viewRoot ?? document.body;
+
     // One drawer at a time — reuse any existing instance and swap contents.
-    const existing = document.body.querySelector(".obsidian-agents-thinking-drawer");
+    const existing = host.querySelector(":scope > .obsidian-agents-thinking-drawer");
     if (existing) existing.remove();
 
-    const drawer = document.body.createDiv({ cls: "obsidian-agents-thinking-drawer" });
+    const drawer = host.createDiv({ cls: "obsidian-agents-thinking-drawer" });
+
+    // Resize handle on the left edge. Dragging past the snap threshold makes
+    // the drawer fill the entire view (chat hidden).
+    const resizer = drawer.createDiv({ cls: "obsidian-agents-thinking-drawer-resizer" });
+    this.wireResizer(resizer, drawer, host);
+
     const header = drawer.createDiv({ cls: "obsidian-agents-thinking-drawer-header" });
 
     const title = header.createDiv({ cls: "obsidian-agents-thinking-drawer-title" });
@@ -165,22 +176,64 @@ export class ThinkingTrace extends Component {
     const dismiss = () => {
       drawer.remove();
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onDocClick, true);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") dismiss();
     };
-    const onDocClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (!drawer.contains(target) && !this.headerEl.contains(target)) dismiss();
-    };
     closeBtn.addEventListener("click", dismiss);
     document.addEventListener("keydown", onKey);
-    // Defer the outside-click listener so the click that opened the drawer
-    // doesn't immediately close it.
-    setTimeout(() => {
-      document.addEventListener("mousedown", onDocClick, true);
-    }, 0);
+  }
+
+  private wireResizer(
+    resizer: HTMLElement,
+    drawer: HTMLElement,
+    host: HTMLElement
+  ): void {
+    // Resize constraints:
+    // - drawer has its own MIN_WIDTH floor
+    // - chat has a MIN_CHAT_WIDTH floor; once dragging would make the chat
+    //   narrower than that, the drawer snaps to fullscreen. Dragging back
+    //   below the snap boundary returns to split view.
+    const MIN_WIDTH = 320;
+    const MIN_CHAT_WIDTH = 400;
+
+    let dragging = false;
+
+    const onDown = (e: PointerEvent) => {
+      dragging = true;
+      resizer.setPointerCapture(e.pointerId);
+      document.body.classList.add("obsidian-agents-col-resizing");
+      e.preventDefault();
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      const hostRect = host.getBoundingClientRect();
+      const rawWidth = hostRect.right - e.clientX;
+      const hostWidth = hostRect.width;
+      const snapBoundary = hostWidth - MIN_CHAT_WIDTH;
+
+      if (rawWidth >= snapBoundary) {
+        drawer.classList.add("obsidian-agents-thinking-drawer-fullscreen");
+        drawer.style.width = "";
+      } else {
+        drawer.classList.remove("obsidian-agents-thinking-drawer-fullscreen");
+        const clamped = Math.max(MIN_WIDTH, rawWidth);
+        drawer.style.width = `${clamped}px`;
+      }
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      try { resizer.releasePointerCapture(e.pointerId); } catch { /* no-op */ }
+      document.body.classList.remove("obsidian-agents-col-resizing");
+    };
+
+    resizer.addEventListener("pointerdown", onDown);
+    resizer.addEventListener("pointermove", onMove);
+    resizer.addEventListener("pointerup", onUp);
+    resizer.addEventListener("pointercancel", onUp);
   }
 
   private splitReasoning(thinking: string): string[] {

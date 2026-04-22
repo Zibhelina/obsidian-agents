@@ -7,6 +7,7 @@
   flex-direction: row;
   height: 100%;
   width: 100%;
+  min-width: 320px;
   overflow: hidden;
   overscroll-behavior-x: none;
   overscroll-behavior-y: contain;
@@ -777,25 +778,57 @@ button.obsidian-agents-message-action-btn:hover {
   stroke-width: 2;
 }
 
-/* Right-side drawer that shows the full trace */
+/* Right-side drawer that splits the chat view (flex sibling of chat panel) */
 .obsidian-agents-thinking-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  position: relative;
   width: min(460px, 44vw);
+  min-width: 320px;
+  flex-shrink: 0;
   background: var(--background-primary);
   border-left: 1px solid var(--background-modifier-border);
-  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.18);
-  z-index: 9500;
   display: flex;
   flex-direction: column;
-  animation: obsidian-agents-slide-in 0.18s ease-out;
+  overflow: hidden;
+  animation: obsidian-agents-drawer-slide-in 0.22s ease;
 }
 
-@keyframes obsidian-agents-slide-in {
+@keyframes obsidian-agents-drawer-slide-in {
   from { transform: translateX(100%); }
   to   { transform: translateX(0); }
+}
+
+/* Snap-to-fullscreen: drawer fills the entire chat view, chat hidden behind */
+.obsidian-agents-thinking-drawer.obsidian-agents-thinking-drawer-fullscreen {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  min-width: 0;
+  z-index: 50;
+  border-left: none;
+}
+
+/* Left-edge grab handle for resizing the drawer */
+.obsidian-agents-thinking-drawer-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 1;
+  background: transparent;
+  transition: background 0.12s;
+}
+
+.obsidian-agents-thinking-drawer-resizer:hover,
+body.obsidian-agents-col-resizing .obsidian-agents-thinking-drawer-resizer {
+  background: var(--interactive-accent);
+  opacity: 0.35;
+}
+
+body.obsidian-agents-col-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .obsidian-agents-thinking-drawer-header {
@@ -989,6 +1022,37 @@ button.obsidian-agents-message-action-btn:hover {
   font-style: italic;
   color: var(--text-faint);
   font-size: 12px;
+}
+
+/* Mobile: thinking drawer always fills the view (no split) with a larger close target */
+@container obsidian-agents (max-width: 520px) {
+  .obsidian-agents-thinking-drawer {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    border-left: none;
+    z-index: 50;
+  }
+  .obsidian-agents-thinking-drawer-resizer {
+    display: none;
+  }
+  .obsidian-agents-thinking-drawer-header {
+    padding: 16px;
+  }
+  .obsidian-agents-thinking-drawer-title {
+    font-size: 17px;
+  }
+  .obsidian-agents-thinking-drawer-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    margin-right: -4px;
+  }
+  .obsidian-agents-thinking-drawer-close:hover {
+    background: var(--background-modifier-hover) !important;
+  }
 }
 
 /* --- Markdown tables (ChatGPT-style: borderless, minimal row rules) --- */
@@ -2660,10 +2724,11 @@ button.obsidian-agents-composer-skill-chip-remove:hover {
   }
 }
 
-/* Mobile: sidebar becomes an absolute overlay so chat panel fills full width */
+/* Mobile: sidebar becomes a full-screen pane when open; chat disappears behind it */
 @container obsidian-agents (max-width: 520px) {
+  /* No dim-backdrop needed — sidebar fully covers the chat */
   .obsidian-agents-sidebar-backdrop {
-    display: block;
+    display: none;
   }
   /* Both open and collapsed sidebar leave the flex flow */
   .obsidian-agents-sidebar-panel {
@@ -2673,18 +2738,27 @@ button.obsidian-agents-composer-skill-chip-remove:hover {
     bottom: 0;
     min-width: 0;
     z-index: 40;
+    transition: transform 0.22s ease, width 0.22s ease;
   }
+  /* Open: fill the entire view */
   .obsidian-agents-sidebar-panel:not(.obsidian-agents-sidebar-collapsed) {
-    box-shadow: 0 0 32px rgba(0, 0, 0, 0.18);
+    width: 100%;
+    max-width: none;
+    right: 0;
   }
-  /* Collapsed toggle: transparent sliver, no layout space taken */
+  /* Collapsed: a thin top strip spanning the full width so the expand icon
+     has its own row and no chat content slips underneath it. */
   .obsidian-agents-sidebar-panel.obsidian-agents-sidebar-collapsed {
-    width: 44px;
-    min-width: 44px;
-    max-width: 44px;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: 40px;
+    bottom: auto;
+    right: 0;
     z-index: 41;
-    background: transparent;
+    background: var(--background-primary);
     border-right: none;
+    border-bottom: 1px solid var(--background-modifier-border);
   }
   .obsidian-agents-greeting {
     font-size: 22px;
@@ -2693,16 +2767,14 @@ button.obsidian-agents-composer-skill-chip-remove:hover {
     max-width: 100% !important;
   }
 
-  /* Lift the collapsed-sidebar toggle above the message list on mobile so
-     the first user bubble doesn't slide underneath it. The button sits in
-     the sidebar panel (z-index: 41); pushing it up and giving the message
-     list a matching top offset keeps them on separate "levels". */
+  /* Pin the expand button to the top-left of its strip. */
   .obsidian-agents-sidebar-panel.obsidian-agents-sidebar-collapsed .obsidian-agents-sidebar-expand-btn {
-    top: 4px;
-    left: 4px;
+    top: 5px;
+    left: 6px;
   }
-  .obsidian-agents-view:has(.obsidian-agents-sidebar-panel.obsidian-agents-sidebar-collapsed) .obsidian-agents-message-list {
-    padding-top: 44px;
+  /* Push the chat content below the top strip so nothing overlaps the icon. */
+  .obsidian-agents-view:has(.obsidian-agents-sidebar-panel.obsidian-agents-sidebar-collapsed) .obsidian-agents-chat-panel {
+    padding-top: 40px;
   }
 
   /* Switch empty-state to bottom-pinned layout on mobile:
