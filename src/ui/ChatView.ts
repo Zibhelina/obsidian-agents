@@ -294,8 +294,14 @@ export class ChatView extends ItemView {
       onStart: ({ userMsg, agentMsg }) => {
         agentMsgId = agentMsg.id;
         onUI(() => {
-          this.messageList?.addMessage(userMsg, this.plugin);
-          this.messageList?.addMessage(agentMsg, this.plugin);
+          // Pass shallow copies so the message list's bubble holds its own
+          // state. The plugin's wrappedHandlers also mutate the original
+          // `agentMsg` (so session persistence stays in sync); if we shared
+          // the reference, the first onToken would double-append — plugin
+          // sets `agentMsg.content = "Yes"`, then our updater reads the same
+          // object back as "Yes" and appends again to "YesYes".
+          this.messageList?.addMessage({ ...userMsg }, this.plugin);
+          this.messageList?.addMessage({ ...agentMsg }, this.plugin);
           this.messageList?.setStreaming(agentMsg.id, true);
           this.messageList?.scrollToBottom();
           this.composer?.setStreaming(true);

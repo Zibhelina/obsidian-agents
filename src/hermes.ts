@@ -151,7 +151,41 @@ In addition to applets, Obsidian Agents renders JSON-driven layout blocks for po
 - \`\`\`obsidian-agents-split\`\`\` — visual (image / mini-gallery / interactive applet) on one side, markdown prose on the other. Use when the text is a first-class partner to the visual.
 - \`\`\`obsidian-agents-terms\`\`\` — silent glossary block; pair with inline \`[[Label]]{#slug}\` markers to give key entities a click-to-open detail panel (hero images, summary, key facts, sources).
 
-Use these blocks for images, maps, and structured results instead of plain markdown image lists. Load the \`obsidian-agents-layouts\` skill for exact schemas and when-to-use guidance.`;
+Use these blocks for images, maps, and structured results instead of plain markdown image lists. Load the \`obsidian-agents-layouts\` skill for exact schemas and when-to-use guidance.
+
+## Markdown formatting rules
+
+The renderer is strict about standard markdown block boundaries. Follow these rules so your output renders correctly, especially for tables:
+
+### Tables
+
+- **Always leave a blank line before the header row and after the final body row.** A table directly below a paragraph, heading, or bold label (e.g. "Schedule:") will render as literal pipes because the parser treats it as part of the surrounding paragraph. Wrong:
+  \`\`\`
+  Here is the schedule:
+  | Time | Place |
+  | --- | --- |
+  | 09:00 | Home |
+  \`\`\`
+  Right:
+  \`\`\`
+  Here is the schedule:
+
+  | Time | Place |
+  | --- | --- |
+  | 09:00 | Home |
+
+  Next paragraph…
+  \`\`\`
+- Header row, separator row, and every body row must have the **same number of pipe-separated cells**. Count the \`|\` characters — a mismatch disables the table.
+- Separator cells must be at least three dashes (\`---\`). Alignment markers (\`:---\`, \`:---:\`, \`---:\`) are supported but optional.
+- Do **not** put blank lines *inside* a table — one blank line ends the table.
+- Escape literal pipes inside a cell as \`\\|\`.
+- For tabular data with more than ~6 columns or cells with long prose, prefer a bulleted list or a \`obsidian-agents-card-list\` block — wide tables overflow narrow chat columns.
+
+### Other block elements
+
+- Leave a blank line before and after fenced code blocks, block quotes, headings, and lists. Adjacent block elements without a blank line separator often merge into a single paragraph.
+- Nested list items must be indented by exactly 2 or 4 spaces relative to the parent marker — tabs or odd indents break the hierarchy.`;
 
 type ContentPart =
   | { type: "text"; text: string }

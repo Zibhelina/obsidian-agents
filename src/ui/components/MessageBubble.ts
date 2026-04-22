@@ -83,6 +83,26 @@ export class MessageBubble extends Component {
           });
         }
       }
+
+      // Mention chips — parse @[name](path) tokens from the stored content
+      // and surface them as pill chips above the bubble, matching the
+      // composer chip styling so the user can verify what they attached.
+      const mentions = this.parseMentions(this.message.content);
+      if (mentions.length > 0) {
+        const chipRow = this.wrapper.createDiv({
+          cls: "obsidian-agents-mention-chips obsidian-agents-message-mention-chips",
+        });
+        for (const m of mentions) {
+          const chip = chipRow.createDiv({ cls: "obsidian-agents-mention-chip" });
+          const iconEl = chip.createSpan({ cls: "obsidian-agents-mention-chip-icon" });
+          setIcon(iconEl, "file-text");
+          chip.createSpan({
+            cls: "obsidian-agents-mention-chip-label",
+            text: m.name,
+            attr: { title: m.path },
+          });
+        }
+      }
     }
 
     // Recreate bubble
@@ -205,6 +225,20 @@ export class MessageBubble extends Component {
         );
       });
     }
+  }
+
+  private parseMentions(content: string): { name: string; path: string }[] {
+    const out: { name: string; path: string }[] = [];
+    const seen = new Set<string>();
+    const re = /@\[([^\]]*)\]\(([^)]*)\)/g;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(content)) !== null) {
+      const path = match[2];
+      if (seen.has(path)) continue;
+      seen.add(path);
+      out.push({ name: match[1] || path, path });
+    }
+    return out;
   }
 
   private openLightbox(src: string, name: string): void {

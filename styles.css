@@ -808,7 +808,7 @@ button.obsidian-agents-message-action-btn:hover {
 /* Right-side drawer that splits the chat view (flex sibling of chat panel) */
 .obsidian-agents-thinking-drawer {
   position: relative;
-  width: min(460px, 44vw);
+  width: 320px;
   min-width: 320px;
   flex-shrink: 0;
   background: var(--background-primary);
@@ -989,6 +989,8 @@ body.obsidian-agents-col-resizing {
   font-weight: 500;
   color: var(--text-normal);
   line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .obsidian-agents-thinking-tl-text {
   margin: 0;
@@ -1014,6 +1016,9 @@ body.obsidian-agents-col-resizing {
   text-decoration: none !important;
   border: 1px solid var(--background-modifier-border);
   transition: background 120ms ease, color 120ms ease;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .obsidian-agents-thinking-tl-chip:hover {
   background: var(--background-modifier-hover);
@@ -2443,6 +2448,15 @@ button.obsidian-agents-composer-skill-chip-remove:hover {
   flex-wrap: wrap;
   gap: 4px;
   margin: 0 0 6px 0;
+}
+
+/* Mention chips surfaced above a sent user message. Reuses the composer
+   chip styling; override container padding/margin so they sit flush with
+   the message bubble. Right-alignment comes from the user wrapper. */
+.obsidian-agents-message-mention-chips {
+  padding: 0;
+  margin: 0 0 6px 0;
+  justify-content: flex-end;
 }
 
 .obsidian-agents-message-skill-chip {
