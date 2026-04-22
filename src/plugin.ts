@@ -137,6 +137,10 @@ export default class ObsidianAgentsPlugin extends Plugin {
         s.name = name || s.name;
         this.sessions.push(s);
         this.deliverToSession(s.id, payload);
+        // Surface a toast so the user can find the new session in the
+        // sidebar — otherwise a scheduled result appearing in an unopened
+        // chat is easy to miss.
+        new Notice(`New chat "${s.name}" created from scheduled result`);
         this.chatView?.renderSidebar(this.sessions, this.foldersList, this.activeSessionId);
         return s;
       },

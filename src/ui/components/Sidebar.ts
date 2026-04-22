@@ -143,9 +143,11 @@ export class Sidebar extends Component {
     this.activeSessionId = activeSessionId;
     this.treeEl.empty();
 
-    const visibleSessions = sessions.filter((s) =>
-      s.messages.some((m) => m.role === "user")
-    );
+    // Show any session that has at least one message. We previously only
+    // counted user messages to hide the "empty reuse slot" that
+    // createSession() keeps around, but that also hid new-chat sessions
+    // created by scheduled jobs (which start with a single agent message).
+    const visibleSessions = sessions.filter((s) => s.messages.length > 0);
 
     const topLevelFolders = folders.filter((f) => f.parentId === null);
     const topLevelSessions = visibleSessions

@@ -519,29 +519,32 @@ export class Composer extends Component {
     });
 
     // After layout settles: (a) publish the pill's width as a CSS var so
-    // the editor's first line can text-indent by that amount; (b) align the
-    // pill's vertical offset to CM6's first text line so the baseline
-    // matches the placeholder/cursor. CM6's content padding isn't fixed
-    // (themes vary), so measure instead of hardcoding.
+    // the editor's first line can text-indent by that amount; (b) align
+    // the pill's vertical offset + font to CM6's first text line so size
+    // and baseline match the placeholder/cursor exactly. CM6 metrics vary
+    // across themes, so measure the live line rather than hardcode.
     if (this.editorHostEl) {
       this.editorHostEl.setAttribute("data-skill-active", "true");
       const host = this.editorHostEl;
       const slot = this.skillPillEl;
+      const pillEl = pill;
       requestAnimationFrame(() => {
-        const w = slot.offsetWidth;
-        if (w > 0) host.style.setProperty("--skill-pill-width", `${w + 6}px`);
-
         const firstLine = host.querySelector(".cm-content > .cm-line") as HTMLElement | null;
         if (firstLine) {
+          const cs = getComputedStyle(firstLine);
+          pillEl.style.fontSize = cs.fontSize;
+          pillEl.style.lineHeight = cs.lineHeight;
+          pillEl.style.fontFamily = cs.fontFamily;
           const hostRect = host.getBoundingClientRect();
           const lineRect = firstLine.getBoundingClientRect();
-          // Vertically center the pill on the first line's text baseline
-          // by matching the line's top within the host, then nudging down
-          // to account for the font's internal leading so the `/` aligns
-          // with a typical lowercase x-height.
           slot.style.top = `${Math.max(0, lineRect.top - hostRect.top)}px`;
           slot.style.height = `${lineRect.height}px`;
         }
+
+        // Pill width has to be measured *after* the font was copied over
+        // so the indent reserves the right amount of horizontal space.
+        const w = slot.offsetWidth;
+        if (w > 0) host.style.setProperty("--skill-pill-width", `${w + 6}px`);
       });
     }
   }
