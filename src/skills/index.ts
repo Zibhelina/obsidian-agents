@@ -6,6 +6,7 @@ import { appletSkill } from "./applet";
 import { tutorSkill } from "./tutor";
 import { webSkill } from "./web";
 import { manageSkillsSkill } from "./manageSkills";
+import { selfImproveSkill } from "./selfImprove";
 
 // On-demand skills: only injected into the system prompt when the user
 // explicitly selects them from the slash-command popover. Keep general
@@ -19,6 +20,7 @@ export const SKILLS: Skill[] = [
   tutorSkill,
   webSkill,
   manageSkillsSkill,
+  selfImproveSkill,
 ];
 
 export class SkillRegistry {
