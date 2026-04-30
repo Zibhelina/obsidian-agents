@@ -5,7 +5,6 @@ import { LayoutEngine } from "./LayoutEngine";
 import { getSkill } from "../../features/commands";
 
 export class MessageBubble extends Component {
-  private el: HTMLElement;
   private wrapper: HTMLElement;
   private bubble: HTMLElement;
   private message: ChatMessage;

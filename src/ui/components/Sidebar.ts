@@ -1,6 +1,10 @@
 import { Component, Menu, setIcon } from "obsidian";
 import { ChatSession, SessionFolder } from "../../types";
 
+type MenuItemWithSubmenu = {
+  setSubmenu(): Menu;
+};
+
 export interface SidebarCallbacks {
   onSelectSession: (id: string) => void;
   onCreateSession: (folderId?: string | null) => void;
@@ -448,7 +452,7 @@ export class Sidebar extends Component {
     if (this.folders.length > 0 || session.folderId !== null) {
       menu.addItem((item) => {
         item.setTitle("Move to folder").setIcon("folder");
-        const sub = item.setSubmenu();
+        const sub = (item as unknown as MenuItemWithSubmenu).setSubmenu();
         sub.addItem((subItem) =>
           subItem.setTitle("(no folder)").onClick(() => {
             this.callbacks.onMoveSession(session.id, null);

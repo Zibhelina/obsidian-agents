@@ -85,7 +85,7 @@ By combining the permanence of a knowledge base with the fluidity of conversatio
 
    ```bash
    cd /path/to/your/vault/.obsidian/plugins/
-   git clone https://github.com/Zibhelina/Obsidian-Agent-Chat.git obsidian-agents
+   git clone https://github.com/Zibhelina/obsidian-agents.git obsidian-agents
    cd obsidian-agents
    ```
 

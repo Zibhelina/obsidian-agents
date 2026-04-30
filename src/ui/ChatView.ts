@@ -45,6 +45,7 @@ export interface IObsidianAgentsPlugin {
     skillIds?: string[]
   ): Promise<string | null>;
   isStreaming(sessionId: string): boolean;
+  isSessionUnread(sessionId: string): boolean;
   getStreamMessageId(sessionId: string): string | null;
   getStreamStartTime(sessionId: string): number | null;
   abortStream(sessionId: string): void;

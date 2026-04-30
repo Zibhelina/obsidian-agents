@@ -35,7 +35,7 @@ import { startCallbackServer, type CallbackServer } from "./callback/server";
 import type { DeliveryPayload } from "./types";
 
 export default class ObsidianAgentsPlugin extends Plugin {
-  settings: ObsidianAgentsSettings;
+  settings!: ObsidianAgentsSettings;
   sessions: ChatSession[] = [];
   foldersList: SessionFolder[] = [];
   activeSessionId: string | null = null;
@@ -222,9 +222,13 @@ export default class ObsidianAgentsPlugin extends Plugin {
     return this.settings.callbackToken;
   }
 
+  syncActiveViewSettings(): void {
+    this.chatView?.syncSettings();
+  }
+
   async activateView(): Promise<void> {
     const { workspace } = this.app;
-    let leaf = workspace.getLeavesOfType(CHAT_VIEW_TYPE)[0] as WorkspaceLeaf | undefined;
+    let leaf: WorkspaceLeaf | null | undefined = workspace.getLeavesOfType(CHAT_VIEW_TYPE)[0];
     if (!leaf) {
       leaf = workspace.getRightLeaf(false);
       if (!leaf) return;
@@ -615,7 +619,7 @@ class ObsidianAgentsSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.agentName = value || "Hermes";
             await this.plugin.savePluginSettings();
-            this.plugin.chatView?.syncSettings();
+            this.plugin.syncActiveViewSettings();
           })
       );
 
